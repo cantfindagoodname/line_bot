@@ -93,7 +93,7 @@ def webhook_handler():
                     actions = [("START","start"),("ADD","add gold"),("CHECK","check gold")]
                 elif machines[event.source.user_id].is_gold_add():
                     actions = [("100","100"),("500","500"),("1000","1000")] + actions
-                elif machines[event.source.user_id].is_coin_flip():
+                elif machines[event.source.user_id].is_coin_flip() or machine[event.source.user_id].is_black_jack:
                     actions = [
                             ("half",str(int(machines[event.source.user_id].gold/2))),
                             ("all",str(int(machines[event.source.user_id].gold)))] + actions
