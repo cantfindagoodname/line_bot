@@ -23,3 +23,5 @@ Which includes
 ![3](./assets/3.png)
 **Function that is implemented with more than 2 states**
 ![2](./assets/2.png)
+#### Add Friend
+![qr](./assets/qr.png)
