@@ -6,37 +6,19 @@ from dotenv import load_dotenv
 from linebot import LineBotApi, WebhookParser
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from collections import deque
 
 from fsm import TocMachine
-from utils import send_text_message
+from utils import send_text_message, send_quick_reply
 
 load_dotenv()
 
 
-machine = TocMachine(
-    states=["user", "state1", "state2"],
-    transitions=[
-        {
-            "trigger": "advance",
-            "source": "user",
-            "dest": "state1",
-            "conditions": "is_going_to_state1",
-        },
-        {
-            "trigger": "advance",
-            "source": "user",
-            "dest": "state2",
-            "conditions": "is_going_to_state2",
-        },
-        {"trigger": "go_back", "source": ["state1", "state2"], "dest": "user"},
-    ],
-    initial="user",
-    auto_transitions=False,
-    show_conditions=True,
-)
-
 app = Flask(__name__, static_url_path="")
 
+
+machine = TocMachine()
+machines = {}
 
 # get channel_secret and channel_access_token from your environment variable
 channel_secret = os.getenv("LINE_CHANNEL_SECRET", None)
@@ -50,7 +32,6 @@ if channel_access_token is None:
 
 line_bot_api = LineBotApi(channel_access_token)
 parser = WebhookParser(channel_secret)
-
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -92,19 +73,37 @@ def webhook_handler():
     except InvalidSignatureError:
         abort(400)
 
-    # if event is MessageEvent and message is TextMessage, then echo text
+    # if event is MessageEvent ,message is TextMessage and str, response
     for event in events:
-        if not isinstance(event, MessageEvent):
-            continue
-        if not isinstance(event.message, TextMessage):
-            continue
-        if not isinstance(event.message.text, str):
-            continue
-        print(f"\nFSM STATE: {machine.state}")
-        print(f"REQUEST BODY: \n{body}")
-        response = machine.advance(event)
-        if response == False:
-            send_text_message(event.reply_token, "Not Entering any State")
+        isText = [
+                isinstance(event,MessageEvent),
+                isinstance(event.message,TextMessage),
+                isinstance(event.message.text,str)
+                ]
+
+        if all(isText):
+            if event.source.user_id not in machines:
+                machines[event.source.user_id] = TocMachine()
+            response = machines[event.source.user_id].advance(event)
+            print(f"\nFSM STATE: {machines[event.source.user_id].state}")
+            #print(f"REQUEST BODY: \n{body}")
+            if response == False:
+                actions = [("CHECK","check gold"),("RETURN","return to main menu")]
+                if machines[event.source.user_id].is_initial():
+                    actions = [("START","start"),("ADD","add gold"),("CHECK","check gold")]
+                elif machines[event.source.user_id].is_gold_add():
+                    actions = [("100","100"),("500","500"),("1000","1000")] + actions
+                elif machines[event.source.user_id].is_coin_flip():
+                    actions = [
+                            ("half",str(int(machines[event.source.user_id].gold/2))),
+                            ("all",str(int(machines[event.source.user_id].gold)))] + actions
+                elif machines[event.source.user_id].is_start():
+                    actions = [
+                            ("BJ","play blackjack"),
+                            ("DICE","roll dice"),
+                            ("COIN","flip a coin")
+                            ] + actions
+                send_quick_reply(event.reply_token,actions)
 
     return "OK"
 
